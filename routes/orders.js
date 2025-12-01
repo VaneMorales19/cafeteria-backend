@@ -9,7 +9,6 @@ router.post('/', protect, async (req, res) => {
     const { items, total, metodoPago, notasAdicionales } = req.body;
 
     console.log('Datos recibidos del pedido:', { items, total });
-    console.log('Items detallados:', JSON.stringify(items, null, 2));
 
     // Validaciones
     if (!items || items.length === 0) {
@@ -20,11 +19,24 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ message: 'Total es requerido' });
     }
 
-    // Generar número de orden
-    const count = await Pedido.countDocuments();
-    const numeroOrden = String(count + 1).padStart(6, '0');
+    // GENERAR NÚMERO DE ORDEN ÚNICO
+    let numeroOrden;
+    let pedidoExiste = true;
+    
+    while (pedidoExiste) {
+      // Generar número aleatorio de 6 dígitos
+      numeroOrden = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Verificar si ya existe
+      const existe = await Pedido.findOne({ numeroOrden });
+      if (!existe) {
+        pedidoExiste = false;
+      }
+    }
 
-    // Crear pedido con las opciones incluidas
+    console.log('Número de orden generado:', numeroOrden);
+
+    // Crear pedido
     const nuevoPedido = new Pedido({
       numeroOrden,
       usuario: req.user.id,
@@ -33,7 +45,7 @@ router.post('/', protect, async (req, res) => {
         nombre: item.nombre,
         precio: item.precio,
         cantidad: item.cantidad,
-        opcionesSeleccionadas: item.opcionesSeleccionadas || [], // ← CRÍTICO
+        opcionesSeleccionadas: item.opcionesSeleccionadas || [],
         comentarios: item.comentarios || ''
       })),
       total,
@@ -49,7 +61,7 @@ router.post('/', protect, async (req, res) => {
       }]
     });
 
-    console.log('Pedido a guardar:', JSON.stringify(nuevoPedido.items, null, 2));
+    console.log('Guardando pedido...');
 
     await nuevoPedido.save();
 
@@ -58,7 +70,7 @@ router.post('/', protect, async (req, res) => {
     // Poblar información del usuario
     await nuevoPedido.populate('usuario', 'nombre apellido correo matricula numeroEmpleado');
 
-    // Emitir evento de socket (si está configurado)
+    // Emitir evento de socket
     const io = req.app.get('io');
     if (io) {
       io.to('admin-room').emit('new-order', nuevoPedido);
@@ -73,17 +85,4 @@ router.post('/', protect, async (req, res) => {
     });
   }
 });
-
-// Obtener pedidos del usuario
-router.get('/my-orders', protect, async (req, res) => {
-  try {
-    const pedidos = await Pedido.find({ usuario: req.user.id })
-      .sort({ createdAt: -1 });
-    res.json(pedidos);
-  } catch (error) {
-    console.error('Error obteniendo pedidos:', error);
-    res.status(500).json({ message: 'Error del servidor' });
-  }
-});
-
 module.exports = router;
