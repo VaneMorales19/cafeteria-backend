@@ -72,15 +72,16 @@ const orderRoutes = require('./routes/orders');
 const adminRoutes = require('./routes/admin');
 
 // Rutas
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/products', require('./routes/products'));
-app.use('/api/orders', require('./routes/orders'));
-app.use('/api/admin', require('./routes/admin'));
-app.use('/api/users', require('./routes/users')); 
-app.use('/api/reviews', require('./routes/reviews'));
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/reviews', reviewRoutes);
+
 
 // Ruta de prueba
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.json({ message: 'API de Cafetería UV funcionando' });
 });
 
