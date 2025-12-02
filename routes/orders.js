@@ -1,24 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Pedido = require('../models/Order');
+const Producto = require('../models/Product');
 const { protect } = require('../middleware/auth');
 
-// Obtener pedidos del usuario actual
-router.get('/', protect, async (req, res) => {
-  try {
-    console.log('Obteniendo pedidos del usuario:', req.user.id);
-    
-    const pedidos = await Pedido.find({ usuario: req.user.id })
-      .sort({ createdAt: -1 });
-    
-    console.log('Pedidos encontrados:', pedidos.length);
-    
-    res.json(pedidos);
-  } catch (error) {
-    console.error('Error obteniendo pedidos:', error);
-    res.status(500).json({ message: 'Error del servidor' });
-  }
-});
 // Crear nuevo pedido
 router.post('/', protect, async (req, res) => {
   try {
@@ -35,15 +20,29 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ message: 'Total es requerido' });
     }
 
-    // GENERAR NÚMERO DE ORDEN ÚNICO
+    // VERIFICAR STOCK DISPONIBLE ANTES DE CREAR EL PEDIDO
+    for (const item of items) {
+      const producto = await Producto.findById(item.producto);
+      
+      if (!producto) {
+        return res.status(404).json({ 
+          message: `Producto ${item.nombre} no encontrado` 
+        });
+      }
+
+      if (producto.stock < item.cantidad) {
+        return res.status(400).json({ 
+          message: `Stock insuficiente para ${item.nombre}. Solo quedan ${producto.stock} unidades.` 
+        });
+      }
+    }
+
+    // Generar número de orden único
     let numeroOrden;
     let pedidoExiste = true;
     
     while (pedidoExiste) {
-      // Generar número aleatorio de 6 dígitos
       numeroOrden = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Verificar si ya existe
       const existe = await Pedido.findOne({ numeroOrden });
       if (!existe) {
         pedidoExiste = false;
@@ -78,8 +77,26 @@ router.post('/', protect, async (req, res) => {
     });
 
     console.log('Guardando pedido...');
-
     await nuevoPedido.save();
+
+    //DESCONTAR STOCK DE CADA PRODUCTO
+    console.log('Descontando stock...');
+    for (const item of items) {
+      const producto = await Producto.findById(item.producto);
+      
+      if (producto) {
+        producto.stock -= item.cantidad;
+        
+        // Si el stock llega a 0, marcar como no disponible
+        if (producto.stock <= 0) {
+          producto.stock = 0;
+          producto.disponible = false;
+        }
+        
+        await producto.save();
+        console.log(`Stock actualizado para ${producto.nombre}: ${producto.stock}`);
+      }
+    }
 
     console.log('Pedido guardado exitosamente');
 
@@ -101,4 +118,22 @@ router.post('/', protect, async (req, res) => {
     });
   }
 });
+
+// Obtener pedidos del usuario actual
+router.get('/', protect, async (req, res) => {
+  try {
+    console.log('Obteniendo pedidos del usuario:', req.user.id);
+    
+    const pedidos = await Pedido.find({ usuario: req.user.id })
+      .sort({ createdAt: -1 });
+    
+    console.log('Pedidos encontrados:', pedidos.length);
+    
+    res.json(pedidos);
+  } catch (error) {
+    console.error('Error obteniendo pedidos:', error);
+    res.status(500).json({ message: 'Error del servidor' });
+  }
+});
+
 module.exports = router;
