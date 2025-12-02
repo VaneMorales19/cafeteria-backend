@@ -20,7 +20,10 @@ const io = socketIO(server, {
 
 // Middleware
 app.use(cors({
-  origin: ['https://cafeteria-uv.vercel.app', 'http://localhost:3000'],
+  origin: [
+    'https://cafeteria-uv.vercel.app', 
+    'http://localhost:3000'
+  ],
   credentials: true
 }));
 app.use(express.json());
