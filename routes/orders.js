@@ -3,6 +3,22 @@ const router = express.Router();
 const Pedido = require('../models/Order');
 const { protect } = require('../middleware/auth');
 
+// Obtener pedidos del usuario actual
+router.get('/', protect, async (req, res) => {
+  try {
+    console.log('Obteniendo pedidos del usuario:', req.user.id);
+    
+    const pedidos = await Pedido.find({ usuario: req.user.id })
+      .sort({ createdAt: -1 });
+    
+    console.log('Pedidos encontrados:', pedidos.length);
+    
+    res.json(pedidos);
+  } catch (error) {
+    console.error('Error obteniendo pedidos:', error);
+    res.status(500).json({ message: 'Error del servidor' });
+  }
+});
 // Crear nuevo pedido
 router.post('/', protect, async (req, res) => {
   try {
